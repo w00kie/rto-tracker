@@ -2,7 +2,7 @@
  * Core types for RTO tracking
  */
 
-export type WorkLocation = 'office' | 'home' | 'vacation' | 'sick'
+export type WorkLocation = "office" | "home" | "vacation" | "sick";
 
 export interface DayEntry {
   date: string; // ISO date string (YYYY-MM-DD)

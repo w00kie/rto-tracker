@@ -27,9 +27,15 @@ export const WeekCard = forwardRef<HTMLDivElement, WeekCardProps>(
 
     const handleToggle = (date: string, currentLocation: WorkLocation) => {
       // Cycle through: home -> office -> vacation -> sick -> home
-      const locationCycle: WorkLocation[] = ["home", "office", "vacation", "sick"];
+      const locationCycle: WorkLocation[] = [
+        "home",
+        "office",
+        "vacation",
+        "sick",
+      ];
       const currentIndex = locationCycle.indexOf(currentLocation);
-      const newLocation = locationCycle[(currentIndex + 1) % locationCycle.length];
+      const newLocation =
+        locationCycle[(currentIndex + 1) % locationCycle.length];
 
       setDay({
         date,
@@ -40,7 +46,7 @@ export const WeekCard = forwardRef<HTMLDivElement, WeekCardProps>(
       const updatedDays = localWeek.days.map((d) =>
         d.date === date ? { ...d, location: newLocation } : d
       );
-      
+
       setLocalWeek({
         ...localWeek,
         days: updatedDays,
@@ -61,56 +67,72 @@ export const WeekCard = forwardRef<HTMLDivElement, WeekCardProps>(
           isCurrentWeek && "bg-blue-50 dark:bg-blue-950/20"
         )}
       >
-      <CardHeader className="pb-3">
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-sm font-medium">
-            Week {localWeek.weekNumber}
-            {isCurrentWeek && (
-              <span className="ml-2 text-xs text-blue-600 dark:text-blue-400">
-                (Current)
-              </span>
-            )}
-          </CardTitle>
-          <Badge variant={localWeek.isCompliant ? "default" : "secondary"}>
-            {localWeek.officeDays} days
-          </Badge>
-        </div>
-        <div className="text-xs text-muted-foreground">
-          {formatDate(fromISODate(localWeek.startDate))} -{" "}
-          {formatDate(fromISODate(localWeek.endDate))}
-        </div>
-      </CardHeader>
-      <CardContent>
-        <div className="flex flex-col gap-1">
-          {localWeek.days.map((day) => {
-            const locationConfig = {
-              office: { icon: "🏢", label: "Office", variant: "default" as const },
-              home: { icon: "🏠", label: "Home", variant: "outline" as const },
-              vacation: { icon: "🏖️", label: "Vacation", variant: "secondary" as const },
-              sick: { icon: "🤒", label: "Sick", variant: "destructive" as const },
-            };
-            const config = locationConfig[day.location];
-            
-            return (
-              <Button
-                key={day.date}
-                variant={config.variant}
-                size="sm"
-                className="justify-between font-normal"
-                onClick={() => handleToggle(day.date, day.location)}
-              >
-                <span>{formatDate(fromISODate(day.date))}</span>
-                <span className="text-xs">
-                  {config.icon} {config.label}
+        <CardHeader className="pb-3">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-sm font-medium">
+              Week {localWeek.weekNumber}
+              {isCurrentWeek && (
+                <span className="ml-2 text-xs text-blue-600 dark:text-blue-400">
+                  (Current)
                 </span>
-              </Button>
-            );
-          })}
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
+              )}
+            </CardTitle>
+            <Badge variant={localWeek.isCompliant ? "default" : "secondary"}>
+              {localWeek.officeDays} days
+            </Badge>
+          </div>
+          <div className="text-xs text-muted-foreground">
+            {formatDate(fromISODate(localWeek.startDate))} -{" "}
+            {formatDate(fromISODate(localWeek.endDate))}
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-col gap-1">
+            {localWeek.days.map((day) => {
+              const locationConfig = {
+                office: {
+                  icon: "🏢",
+                  label: "Office",
+                  variant: "default" as const,
+                },
+                home: {
+                  icon: "🏠",
+                  label: "Home",
+                  variant: "outline" as const,
+                },
+                vacation: {
+                  icon: "🏖️",
+                  label: "Vacation",
+                  variant: "secondary" as const,
+                },
+                sick: {
+                  icon: "🤒",
+                  label: "Sick",
+                  variant: "destructive" as const,
+                },
+              };
+              const config = locationConfig[day.location];
+
+              return (
+                <Button
+                  key={day.date}
+                  variant={config.variant}
+                  size="sm"
+                  className="justify-between font-normal"
+                  onClick={() => handleToggle(day.date, day.location)}
+                >
+                  <span>{formatDate(fromISODate(day.date))}</span>
+                  <span className="text-xs">
+                    {config.icon} {config.label}
+                  </span>
+                </Button>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+    );
+  }
 );
 
 WeekCard.displayName = "WeekCard";

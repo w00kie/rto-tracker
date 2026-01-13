@@ -71,7 +71,9 @@ function Dashboard() {
   const scrollToCurrentWeek = useCallback(() => {
     // First expand the current quarter if not already
     if (year === currentQuarterInfo.year) {
-      setExpandedQuarters((prev) => new Set(prev).add(currentQuarterInfo.quarter));
+      setExpandedQuarters((prev) =>
+        new Set(prev).add(currentQuarterInfo.quarter)
+      );
 
       // Wait for the expansion animation to complete
       setTimeout(() => {
