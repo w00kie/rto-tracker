@@ -31,7 +31,7 @@ jobs:
         run: bun run build
         env:
           NODE_ENV: production
-          VITE_CONVEX_URL: ${{ secrets.VITE_CONVEX_URL }}
+          VITE_CONVEX_URL: ${{ vars.VITE_CONVEX_URL }}
 
       - name: Deploy to Cloudflare Pages
         uses: cloudflare/wrangler-action@v3

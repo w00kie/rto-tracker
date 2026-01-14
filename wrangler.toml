@@ -1,6 +1,0 @@
-name = "rto-tracker"
-compatibility_date = "2025-01-14"
-pages_build_output_dir = ".output/public"
-
-# Environment variables (set in Cloudflare dashboard)
-# VITE_CONVEX_URL - Your Convex deployment URL
