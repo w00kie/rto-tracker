@@ -11,6 +11,7 @@
 import type * as auth from "../auth.js";
 import type * as config from "../config.js";
 import type * as dayEntries from "../dayEntries.js";
+import type * as http from "../http.js";
 
 import type {
   ApiFromModules,
@@ -22,6 +23,7 @@ declare const fullApi: ApiFromModules<{
   auth: typeof auth;
   config: typeof config;
   dayEntries: typeof dayEntries;
+  http: typeof http;
 }>;
 
 /**
