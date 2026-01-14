@@ -116,12 +116,6 @@ function Dashboard() {
     warningThresholdWeeks: 7,
   };
   const activeConfig = config || defaultConfig;
-  const defaultConfig: ComplianceConfig = {
-    requiredOfficeDaysPerWeek: 2,
-    requiredCompliantWeeksPerQuarter: 8,
-    warningThresholdWeeks: 7,
-  };
-  const activeConfig = config || defaultConfig;
 
   const totalCompliantWeeks = quarters.reduce(
     (sum, q) => sum + q.compliantWeeks,

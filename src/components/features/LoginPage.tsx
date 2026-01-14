@@ -1,3 +1,4 @@
+import { useAuthActions } from "@convex-dev/auth/react";
 import { Button } from "../ui/button";
 import {
   Card,
@@ -12,13 +13,14 @@ import {
  * Shown to unauthenticated users
  */
 export function LoginPage() {
+  const { signIn } = useAuthActions();
+
   const handleGoogleSignIn = () => {
-    // Convex OAuth will be configured via dashboard
-    window.location.href = "/api/auth/signin/google";
+    void signIn("google");
   };
 
   const handleGitHubSignIn = () => {
-    window.location.href = "/api/auth/signin/github";
+    void signIn("github");
   };
 
   return (
