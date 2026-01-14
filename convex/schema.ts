@@ -4,12 +4,12 @@ import { authTables } from "@convex-dev/auth/server";
 
 /**
  * Convex schema for RTO Tracker
- * 
+ *
  * All tables are user-scoped with userId index for efficient queries.
  */
 export default defineSchema({
   ...authTables,
-  
+
   /**
    * Day entries - tracks work location for each day
    */

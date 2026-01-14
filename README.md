@@ -58,21 +58,26 @@ RTO Tracker is a multi-user application designed to track daily office attendanc
 ### Environment Setup
 
 1. Clone the repository:
+
 ```bash
 git clone <your-repo-url>
 cd rto-tracker
 ```
 
 2. Install dependencies:
+
 ```bash
 bun install
 ```
 
 3. Set up Convex:
+
 ```bash
 bunx convex dev
 ```
+
 This will:
+
 - Create a Convex account (if needed)
 - Create a new Convex project
 - Generate your `.env.local` file with `VITE_CONVEX_URL`
@@ -88,6 +93,7 @@ This will:
 ### Development
 
 Run the development server (starts both Convex and Vite):
+
 ```bash
 bun run dev
 ```

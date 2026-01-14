@@ -9,7 +9,7 @@ jobs:
   deploy:
     runs-on: ubuntu-latest
     name: Deploy RTO Tracker
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
