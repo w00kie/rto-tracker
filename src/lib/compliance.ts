@@ -15,7 +15,6 @@ import {
   toISODate,
   getWeeksInQuarter,
 } from "./date-utils";
-import { getDaysInRange } from "./storage";
 
 /**
  * Calculate week summary from day entries
@@ -23,7 +22,8 @@ import { getDaysInRange } from "./storage";
 export function calculateWeekSummary(
   year: number,
   weekNumber: number,
-  config: ComplianceConfig
+  config: ComplianceConfig,
+  allEntries: DayEntry[]
 ): WeekSummary {
   const { start, end } = getWeekBounds(year, weekNumber);
   const startDate = toISODate(start);
@@ -32,8 +32,10 @@ export function calculateWeekSummary(
   // Get all weekdays in this week
   const weekdays = getWeekdays(year, weekNumber);
 
-  // Get logged entries for this week
-  const loggedDays = getDaysInRange(startDate, endDate);
+  // Filter entries for this week
+  const loggedDays = allEntries.filter(
+    (entry) => entry.date >= startDate && entry.date <= endDate
+  );
   const loggedMap = new Map(loggedDays.map((d) => [d.date, d]));
 
   // Create entries for all weekdays (defaulting to 'home')
@@ -70,12 +72,13 @@ export function calculateWeekSummary(
 export function calculateQuarterSummary(
   year: number,
   quarter: 1 | 2 | 3 | 4,
-  config: ComplianceConfig
+  config: ComplianceConfig,
+  allEntries: DayEntry[]
 ): QuarterSummary {
   const weekNumbers = getWeeksInQuarter(year, quarter);
 
   const weeks = weekNumbers.map((weekNumber) =>
-    calculateWeekSummary(year, weekNumber, config)
+    calculateWeekSummary(year, weekNumber, config, allEntries)
   );
 
   const compliantWeeks = weeks.filter((w) => w.isCompliant).length;
@@ -106,9 +109,10 @@ export function calculateQuarterSummary(
  */
 export function calculateYearSummary(
   year: number,
-  config: ComplianceConfig
+  config: ComplianceConfig,
+  allEntries: DayEntry[] = []
 ): QuarterSummary[] {
   return [1, 2, 3, 4].map((q) =>
-    calculateQuarterSummary(year, q as 1 | 2 | 3 | 4, config)
+    calculateQuarterSummary(year, q as 1 | 2 | 3 | 4, config, allEntries)
   );
 }

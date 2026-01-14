@@ -185,3 +185,17 @@ export function formatDate(date: Date): string {
     day: "numeric",
   });
 }
+
+/**
+ * Get date range for an entire year
+ * Returns the first and last day of the year in ISO format
+ */
+export function getYearDateRange(year: number): {
+  startDate: string;
+  endDate: string;
+} {
+  return {
+    startDate: `${year}-01-01`,
+    endDate: `${year}-12-31`,
+  };
+}

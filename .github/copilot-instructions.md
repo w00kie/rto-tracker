@@ -6,48 +6,59 @@ A modern full-stack application for tracking my personal Return to Office (RTO) 
 
 **Target Users:** Me, an individual contributor in a global tech company.
 
-**Key Features:** Record days spent in office or at home, policy compliance tracking, data visualization, real-time updates.
+**Key Features:** Record days spent in office or at home, policy compliance tracking, data visualization, real-time sync across devices, multi-user support with OAuth authentication.
 
 ## Tech Stack
 
 - **Runtime & Package Manager:** Bun (latest)
 - **Framework:** TanStack Start (full-stack React with SSR)
 - **Routing:** TanStack Router (file-based)
+- **Database:** Convex (real-time backend with built-in auth)
+- **Authentication:** Convex Auth (Google + GitHub OAuth)
+- **Hosting:** Cloudflare Pages (global CDN, edge runtime)
 - **UI Components:** shadcn/ui with Radix UI primitives
 - **Styling:** Tailwind CSS with CSS variables for theming
 - **Type System:** TypeScript (strict mode)
 - **Forms:** react-hook-form with Zod validation
-- **Server State:** TanStack Query
+- **Server State:** Convex React hooks (TanStack Query integration)
 - **Testing:** bun:test (built-in test runner)
+- **CI/CD:** GitHub Actions → Cloudflare Pages
 
 ## Architecture Overview
 
 ```
-app/
+src/
   routes/              # File-based routing
-    __root.tsx         # Root layout with providers
-    index.tsx          # Home page (/)
-    about.tsx          # Static route (/about)
-    dashboard/         # Route group
-      index.tsx        # /dashboard
-      $id.tsx          # Dynamic /dashboard/:id
+    __root.tsx         # Root layout with ConvexProvider & auth wall
+    index.tsx          # Dashboard (/)
   components/
     ui/                # shadcn/ui components (don't modify directly)
     features/          # Feature-specific components
-    layouts/           # Shared layouts
+      LoginPage.tsx    # OAuth login page
+      QuarterView.tsx  # Quarter compliance display
+      WeekCard.tsx     # Week display with day toggles
   lib/
     utils.ts           # cn() utility and helpers
-    api.ts             # Server functions
+    compliance.ts      # Pure calculation functions
+    date-utils.ts      # Date/week/quarter utilities
+    types.ts           # TypeScript type definitions
   styles/
     globals.css        # Global styles and CSS variables
+
+convex/
+  schema.ts            # Database schema definition
+  dayEntries.ts        # Queries & mutations for day entries
+  config.ts            # User compliance configuration
+  _generated/          # Auto-generated Convex types & API
 ```
 
 **Separation of Concerns:**
 
-- Server functions in `app/lib/api.ts` or colocated with routes
+- Convex functions in `convex/` directory (queries, mutations, schema)
+- Pure business logic in `src/lib/compliance.ts` (calculations only)
 - UI primitives stay in `components/ui/`
 - Feature components in `components/features/`
-- Business logic in server functions, not components
+- Authentication handled by Convex Auth + ConvexProvider wrapper
 
 ## File and Folder Conventions
 
@@ -242,104 +253,261 @@ export function FeatureComponent({
 }
 ```
 
-## Data Fetching and Server Functions
+## Convex Integration Patterns
 
-### Server Functions with `createServerFn()`
+### Schema Definition
 
-**Define server functions for backend logic:**
+**Define tables with user isolation:**
 
 ```typescript
-// app/lib/api.ts
-import { createServerFn } from "@tanstack/start";
+// convex/schema.ts
+import { defineSchema, defineTable } from "convex/server";
+import { v } from "convex/values";
 
-export const getUser = createServerFn("GET", async (userId: string) => {
-  "use server"; // Marks as server-only code
-  // Database/API calls here
-  const user = await db.user.findUnique({ where: { id: userId } });
-  return user;
+export default defineSchema({
+  dayEntries: defineTable({
+    userId: v.string(),
+    date: v.string(),
+    location: v.union(
+      v.literal("office"),
+      v.literal("home"),
+      v.literal("vacation"),
+      v.literal("sick")
+    ),
+    notes: v.optional(v.string()),
+  })
+    .index("by_user", ["userId"])
+    .index("by_user_and_date", ["userId", "date"]),
+});
+```
+
+### Queries and Mutations
+
+**ALWAYS filter by authenticated user:**
+
+```typescript
+// convex/dayEntries.ts
+import { v } from "convex/values";
+import { mutation, query } from "./_generated/server";
+
+export const getDay = query({
+  args: { date: v.string() },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    return await ctx.db
+      .query("dayEntries")
+      .withIndex("by_user_and_date", (q) =>
+        q.eq("userId", identity.subject).eq("date", args.date)
+      )
+      .first();
+  },
 });
 
-export const updateUser = createServerFn(
-  "POST",
-  async (data: UpdateUserInput) => {
-    "use server";
-    // Validation, database updates
-    return await db.user.update({ where: { id: data.id }, data });
-  }
-);
-```
+export const setDay = mutation({
+  args: {
+    date: v.string(),
+    location: v.union(
+      v.literal("office"),
+      v.literal("home"),
+      v.literal("vacation"),
+      v.literal("sick")
+    ),
+  },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
 
-**Using in Components:**
+    // Upsert logic
+    const existing = await ctx.db
+      .query("dayEntries")
+      .withIndex("by_user_and_date", (q) =>
+        q.eq("userId", identity.subject).eq("date", args.date)
+      )
+      .first();
 
-```typescript
-import { getUser } from "@/lib/api";
-
-export default function UserProfile() {
-  const userId = Route.useParams().id;
-  const { data, isLoading } = useQuery({
-    queryKey: ["user", userId],
-    queryFn: () => getUser(userId),
-  });
-
-  if (isLoading) return <Skeleton />;
-  return <div>{data.name}</div>;
-}
-```
-
-### Loaders for SSR/SSG
-
-**Use loaders for data needed at render time (SEO-critical, above-the-fold):**
-
-```typescript
-export const Route = createFileRoute("/posts/$id")({
-  loader: async ({ params }) => {
-    return await getPost(params.id);
+    if (existing) {
+      await ctx.db.patch(existing._id, { location: args.location });
+      return existing._id;
+    } else {
+      return await ctx.db.insert("dayEntries", {
+        userId: identity.subject,
+        date: args.date,
+        location: args.location,
+      });
+    }
   },
 });
 ```
 
-**When to use loaders vs server functions:**
+### Using Convex in Components
 
-- **Loaders:** Initial page data, SEO content, static data
-- **Server functions:** Mutations, dynamic fetches, client-triggered actions
-
-### Error Handling
+**Use Convex React hooks for data fetching:**
 
 ```typescript
-// In server functions
-export const getUser = createServerFn("GET", async (userId: string) => {
-  "use server";
-  try {
-    return await db.user.findUnique({ where: { id: userId } });
-  } catch (error) {
-    throw new Error("Failed to fetch user");
+import { useQuery, useMutation } from "convex/react";
+import { api } from "../../convex/_generated/api";
+
+export function Dashboard() {
+  // Query data
+  const dayEntries = useQuery(api.dayEntries.getDaysInRange, {
+    startDate: "2025-01-01",
+    endDate: "2025-12-31",
+  });
+
+  // Mutation
+  const setDay = useMutation(api.dayEntries.setDay);
+
+  const handleUpdate = (date: string, location: WorkLocation) => {
+    void setDay({ date, location });
+  };
+
+  // Handle loading state
+  if (dayEntries === undefined) {
+    return <div>Loading...</div>;
   }
-});
 
-// In components with TanStack Query
-const { data, error, isError } = useQuery({
-  queryKey: ["user", userId],
-  queryFn: () => getUser(userId),
-});
-
-if (isError) {
-  return <ErrorDisplay error={error} />;
+  return <div>{/* UI */}</div>;
 }
 ```
 
-### Type Safety
+### Authentication Patterns
 
-**Server functions are fully type-safe:**
+**Wrap app with ConvexProvider and auth checks:**
 
 ```typescript
-// Server knows the input and output types
-const getUser = createServerFn("GET", async (userId: string) => {
-  return { id: userId, name: "John" };
-});
+// src/routes/__root.tsx
+import { ConvexProvider, ConvexReactClient } from "convex/react";
+import { Authenticated, Unauthenticated } from "convex/react";
+import { LoginPage } from "@/components/features/LoginPage";
 
-// Client automatically knows the return type
-const user = await getUser("123"); // Type: { id: string; name: string }
+const convex = new ConvexReactClient(import.meta.env.VITE_CONVEX_URL);
+
+function RootDocument({ children }: { children: React.ReactNode }) {
+  return (
+    <ConvexProvider client={convex}>
+      <Authenticated>
+        <Header />
+        {children}
+      </Authenticated>
+      <Unauthenticated>
+        <LoginPage />
+      </Unauthenticated>
+    </ConvexProvider>
+  );
+}
 ```
+
+**OAuth sign in/out:**
+
+```typescript
+import { useAuthActions } from "convex/react";
+
+export function AuthButtons() {
+  const { signIn, signOut } = useAuthActions();
+
+  return (
+    <>
+      <Button onClick={() => void signIn("google")}>Sign in with Google</Button>
+      <Button onClick={() => void signIn("github")}>Sign in with GitHub</Button>
+      <Button onClick={() => void signOut()}>Sign out</Button>
+    </>
+  );
+}
+```
+
+## Deployment and CI/CD
+
+### Development Workflow
+
+**Run both Convex and Vite concurrently:**
+
+```bash
+bun run dev  # Runs: concurrently "bunx convex dev" "vite dev --port 3000"
+```
+
+This starts:
+- Convex backend dev server (syncs schema and functions)
+- Vite frontend dev server on port 3000
+
+### Environment Variables
+
+**Development (.env.local - auto-generated by Convex):**
+```bash
+CONVEX_DEPLOYMENT=dev:your-deployment-name
+VITE_CONVEX_URL=https://your-deployment-name.convex.cloud
+```
+
+**Production (set in GitHub Secrets & Cloudflare):**
+- `CONVEX_DEPLOY_KEY` - From Convex dashboard → Settings → Deploy Keys
+- `VITE_CONVEX_URL` - Production Convex URL
+- `CLOUDFLARE_API_TOKEN` - Cloudflare API token with Pages edit permissions
+- `CLOUDFLARE_ACCOUNT_ID` - Your Cloudflare account ID
+
+### Cloudflare Pages Configuration
+
+**vite.config.ts - Uses Cloudflare Pages preset in production:**
+
+```typescript
+import { nitro } from 'nitro/vite'
+
+nitro({
+  preset: process.env.NODE_ENV === 'production' ? 'cloudflare-pages' : undefined,
+})
+```
+
+**wrangler.toml:**
+```toml
+name = "rto-tracker"
+compatibility_date = "2025-01-14"
+pages_build_output_dir = ".output/public"
+```
+
+### CI/CD Workflow
+
+**Automated deployment on push to main:**
+
+1. Install dependencies with Bun
+2. Deploy Convex functions to production (`bunx convex deploy --prod`)
+3. Build app with production environment variables
+4. Deploy to Cloudflare Pages
+
+See [.github/workflows/deploy.yml](.github/workflows/deploy.yml) for full workflow.
+
+### Manual Deployment
+
+```bash
+bun run deploy  # Runs: bunx convex deploy --prod && vite build && wrangler pages deploy
+```
+
+## Data Fetching and Business Logic
+
+**Pure calculation functions in `src/lib/compliance.ts`:**
+
+```typescript
+// NO database calls - pure functions only
+export function calculateWeekSummary(
+  year: number,
+  weekNumber: number,
+  config: ComplianceConfig,
+  allEntries: DayEntry[]
+): WeekSummary {
+  // Calculate compliance from entries
+  return { /* ... */ };
+}
+```
+
+**Convex handles all data persistence:**
+
+- Queries: `useQuery(api.dayEntries.getDaysInRange, { startDate, endDate })`
+- Mutations: `useMutation(api.dayEntries.setDay)`
+- Real-time updates handled automatically by Convex
+- No need for manual refetching or cache invalidation
 
 ## Styling Conventions
 
@@ -630,37 +798,55 @@ export function UserCard({ user }: UserCardProps) {
 }
 ```
 
-### Creating a Server Function
+### Adding a Convex Query or Mutation
 
-1. Define in `app/lib/api.ts` or colocate with route
-2. Use `createServerFn()` with HTTP method
-3. Add `'use server'` directive
-4. Include proper error handling
-5. Type input and output
+1. Define in `convex/` directory (e.g., `convex/myFeature.ts`)
+2. Import from `convex/server` and `./_generated/server`
+3. Use `query()` or `mutation()` with args validation
+4. Always check authentication with `ctx.auth.getUserIdentity()`
+5. Filter by `userId` for user-scoped data
 
 ```typescript
-import { createServerFn } from "@tanstack/start";
-import { z } from "zod";
+// convex/myFeature.ts
+import { v } from "convex/values";
+import { mutation, query } from "./_generated/server";
 
-const inputSchema = z.object({
-  email: z.string().email(),
-  name: z.string().min(2),
+export const getData = query({
+  args: { id: v.string() },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
+
+    return await ctx.db
+      .query("myTable")
+      .withIndex("by_user", (q) => q.eq("userId", identity.subject))
+      .filter((q) => q.eq(q.field("id"), args.id))
+      .first();
+  },
 });
 
-export const createUser = createServerFn(
-  "POST",
-  async (input: z.infer<typeof inputSchema>) => {
-    "use server";
+export const updateData = mutation({
+  args: { id: v.string(), value: v.string() },
+  handler: async (ctx, args) => {
+    const identity = await ctx.auth.getUserIdentity();
+    if (!identity) {
+      throw new Error("Not authenticated");
+    }
 
-    // Validate input
-    const validated = inputSchema.parse(input);
+    const doc = await ctx.db
+      .query("myTable")
+      .withIndex("by_user_and_id", (q) =>
+        q.eq("userId", identity.subject).eq("id", args.id)
+      )
+      .first();
 
-    // Business logic
-    const user = await db.user.create({ data: validated });
+    if (!doc) throw new Error("Not found");
 
-    return user;
-  }
-);
+    await ctx.db.patch(doc._id, { value: args.value });
+  },
+});
 ```
 
 ### Adding a shadcn/ui Component
@@ -707,21 +893,36 @@ export function UserForm() {
     resolver: zodResolver(schema),
   });
 
-  const mutation = useMutation({
-    mutationFn: createUser,
-  });
+  const createUserMutation = useMutation(api.users.create);
 
   const onSubmit = (data: FormData) => {
-    mutation.mutate(data);
+    void createUserMutation(data);
   };
 
   return (
     <form onSubmit={handleSubmit(onSubmit)}>
       <input {...register("email")} />
       {errors.email && <span>{errors.email.message}</span>}
-      <Button type="submit" disabled={mutation.isPending}>
+      <Button type="submit" disabled={createUserMutation.isLoading}>
         Submit
       </Button>
+    </form>
+  );
+}
+```
+
+## Key Principles
+
+1. **Type Safety First:** Leverage TypeScript across client-server boundary
+2. **Convex for Data:** All data persistence through Convex queries/mutations
+3. **Pure Calculation Functions:** Keep business logic separate in `lib/` directory
+4. **Own Your UI:** shadcn/ui components are yours to modify
+5. **Bun for Everything:** Use Bun commands, not npm/yarn
+6. **File-Based Routing:** Routes are defined by file structure
+7. **Composition Over Props:** Prefer composing components over complex prop APIs
+8. **Accessibility Matters:** Maintain ARIA attributes and keyboard navigation
+9. **Test What Matters:** Focus testing on business logic and critical paths
+10. **Explicit Over Implicit:** Clear, verbose code is better than clever code
     </form>
   );
 }

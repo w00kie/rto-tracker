@@ -1,5 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
+import { useQuery } from "convex/react";
+import { api } from "../../convex/_generated/api";
 import { QuarterView } from "@/components/features/QuarterView";
 import { Button } from "@/components/ui/button";
 import {
@@ -10,21 +12,19 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { ArrowDown } from "lucide-react";
-import { loadConfig } from "@/lib/storage";
 import { calculateYearSummary } from "@/lib/compliance";
 import {
   getCurrentYear,
   getCurrentQuarter,
   getCurrentWeek,
+  getYearDateRange,
 } from "@/lib/date-utils";
-import type { QuarterSummary } from "@/lib/types";
+import type { QuarterSummary, ComplianceConfig } from "@/lib/types";
 
 export const Route = createFileRoute("/")({ component: Dashboard });
 
 function Dashboard() {
   const [year, setYear] = useState(getCurrentYear());
-  const [quarters, setQuarters] = useState<QuarterSummary[]>([]);
-  const [isLoading, setIsLoading] = useState(true);
   const [expandedQuarters, setExpandedQuarters] = useState<Set<number>>(
     new Set()
   );
@@ -32,25 +32,38 @@ function Dashboard() {
   const currentWeekInfo = getCurrentWeek();
   const currentQuarterInfo = getCurrentQuarter();
 
-  const loadData = () => {
-    setIsLoading(true);
-    const config = loadConfig();
-    const quarterSummaries = calculateYearSummary(year, config);
-    setQuarters(quarterSummaries);
+  // Get date range for the year
+  const yearRange = useMemo(() => getYearDateRange(year), [year]);
 
-    // Only expand current quarter by default on initial load or when viewing current year
+  // Load data from Convex
+  const dayEntries = useQuery(api.dayEntries.getDaysInRange, {
+    startDate: yearRange.startDate,
+    endDate: yearRange.endDate,
+  });
+  const config = useQuery(api.config.getConfig, {});
+
+  // Calculate quarters when data changes
+  const quarters = useMemo<QuarterSummary[]>(() => {
+    if (!dayEntries || !config) return [];
+
+    // Convert Convex entries to DayEntry format (remove _id and _creationTime)
+    const cleanEntries = dayEntries.map(({ date, location, notes }) => ({
+      date,
+      location,
+      notes,
+    }));
+
+    return calculateYearSummary(year, config, cleanEntries);
+  }, [dayEntries, config, year]);
+
+  // Expand current quarter on initial load or year change
+  useEffect(() => {
     if (year === currentQuarterInfo.year) {
       setExpandedQuarters(new Set([currentQuarterInfo.quarter]));
     } else {
       setExpandedQuarters(new Set());
     }
-
-    setIsLoading(false);
-  };
-
-  useEffect(() => {
-    loadData();
-  }, [year]);
+  }, [year, currentQuarterInfo.year, currentQuarterInfo.quarter]);
 
   const handleYearChange = (delta: number) => {
     setYear(year + delta);
@@ -88,7 +101,8 @@ function Dashboard() {
     }
   }, [year, currentQuarterInfo, currentWeekInfo]);
 
-  if (isLoading) {
+  // Loading state
+  if (dayEntries === undefined || config === undefined) {
     return (
       <div className="container mx-auto px-4 py-8">
         <div className="text-center">Loading...</div>
@@ -96,7 +110,19 @@ function Dashboard() {
     );
   }
 
-  const config = loadConfig();
+  const defaultConfig: ComplianceConfig = {
+    requiredOfficeDaysPerWeek: 2,
+    requiredCompliantWeeksPerQuarter: 8,
+    warningThresholdWeeks: 7,
+  };
+  const activeConfig = config || defaultConfig;
+  const defaultConfig: ComplianceConfig = {
+    requiredOfficeDaysPerWeek: 2,
+    requiredCompliantWeeksPerQuarter: 8,
+    warningThresholdWeeks: 7,
+  };
+  const activeConfig = config || defaultConfig;
+
   const totalCompliantWeeks = quarters.reduce(
     (sum, q) => sum + q.compliantWeeks,
     0
@@ -177,7 +203,7 @@ function Dashboard() {
                 Required Office Days
               </div>
               <div className="text-3xl font-bold mt-1">
-                {config.requiredOfficeDaysPerWeek}
+                {activeConfig.requiredOfficeDaysPerWeek}
               </div>
               <div className="text-xs text-muted-foreground mt-1">
                 days per week
@@ -188,7 +214,7 @@ function Dashboard() {
                 Target Per Quarter
               </div>
               <div className="text-3xl font-bold mt-1">
-                {config.requiredCompliantWeeksPerQuarter}
+                {activeConfig.requiredCompliantWeeksPerQuarter}
               </div>
               <div className="text-xs text-muted-foreground mt-1">
                 compliant weeks
@@ -199,7 +225,7 @@ function Dashboard() {
                 Warning Threshold
               </div>
               <div className="text-3xl font-bold mt-1">
-                {config.warningThresholdWeeks}
+                {activeConfig.warningThresholdWeeks}
               </div>
               <div className="text-xs text-muted-foreground mt-1">
                 weeks minimum
@@ -223,7 +249,6 @@ function Dashboard() {
             <QuarterView
               key={`${quarter.year}-Q${quarter.quarter}`}
               quarter={quarter}
-              onUpdate={loadData}
               isExpanded={expandedQuarters.has(quarter.quarter)}
               onToggle={() => toggleQuarter(quarter.quarter)}
               currentWeek={

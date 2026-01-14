@@ -12,7 +12,6 @@ import { cn } from "@/lib/utils";
 
 interface QuarterViewProps {
   quarter: QuarterSummary;
-  onUpdate: () => void;
   isExpanded: boolean;
   onToggle: () => void;
   currentWeek?: number;
@@ -20,7 +19,6 @@ interface QuarterViewProps {
 
 export function QuarterView({
   quarter,
-  onUpdate,
   isExpanded,
   onToggle,
   currentWeek,
@@ -90,7 +88,6 @@ export function QuarterView({
             <WeekCard
               key={`${week.year}-W${week.weekNumber}`}
               week={week}
-              onUpdate={onUpdate}
               isCurrentWeek={currentWeek === week.weekNumber}
             />
           ))}

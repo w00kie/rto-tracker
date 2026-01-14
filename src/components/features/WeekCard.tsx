@@ -2,28 +2,24 @@
  * WeekCard component - displays a single week with day toggles
  */
 
-import { useState, useEffect, forwardRef } from "react";
+import { forwardRef } from "react";
+import { useMutation } from "convex/react";
+import { api } from "../../../convex/_generated/api";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import type { WeekSummary, WorkLocation } from "@/lib/types";
-import { setDay } from "@/lib/storage";
 import { formatDate, fromISODate } from "@/lib/date-utils";
 import { cn } from "@/lib/utils";
 
 interface WeekCardProps {
   week: WeekSummary;
-  onUpdate: () => void;
   isCurrentWeek?: boolean;
 }
 
 export const WeekCard = forwardRef<HTMLDivElement, WeekCardProps>(
-  ({ week, onUpdate, isCurrentWeek = false }, ref) => {
-    const [localWeek, setLocalWeek] = useState(week);
-
-    useEffect(() => {
-      setLocalWeek(week);
-    }, [week]);
+  ({ week, isCurrentWeek = false }, ref) => {
+    const setDayMutation = useMutation(api.dayEntries.setDay);
 
     const handleToggle = (date: string, currentLocation: WorkLocation) => {
       // Cycle through: home -> office -> vacation -> sick -> home
@@ -37,58 +33,45 @@ export const WeekCard = forwardRef<HTMLDivElement, WeekCardProps>(
       const newLocation =
         locationCycle[(currentIndex + 1) % locationCycle.length];
 
-      setDay({
+      // Update via Convex mutation (optimistic updates handled by Convex)
+      void setDayMutation({
         date,
         location: newLocation,
       });
-
-      // Update local state optimistically
-      const updatedDays = localWeek.days.map((d) =>
-        d.date === date ? { ...d, location: newLocation } : d
-      );
-
-      setLocalWeek({
-        ...localWeek,
-        days: updatedDays,
-        officeDays: updatedDays.filter((d) => d.location === "office").length,
-      });
-
-      // Notify parent to refresh
-      onUpdate();
     };
 
     return (
       <Card
         ref={ref}
-        id={`week-${localWeek.year}-${localWeek.weekNumber}`}
+        id={`week-${week.year}-${week.weekNumber}`}
         className={cn(
           "transition-colors",
-          localWeek.isCompliant ? "border-green-500/50" : "border-amber-500/50",
+          week.isCompliant ? "border-green-500/50" : "border-amber-500/50",
           isCurrentWeek && "bg-blue-50 dark:bg-blue-950/20"
         )}
       >
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
             <CardTitle className="text-sm font-medium">
-              Week {localWeek.weekNumber}
+              Week {week.weekNumber}
               {isCurrentWeek && (
                 <span className="ml-2 text-xs text-blue-600 dark:text-blue-400">
                   (Current)
                 </span>
               )}
             </CardTitle>
-            <Badge variant={localWeek.isCompliant ? "default" : "secondary"}>
-              {localWeek.officeDays} days
+            <Badge variant={week.isCompliant ? "default" : "secondary"}>
+              {week.officeDays} days
             </Badge>
           </div>
           <div className="text-xs text-muted-foreground">
-            {formatDate(fromISODate(localWeek.startDate))} -{" "}
-            {formatDate(fromISODate(localWeek.endDate))}
+            {formatDate(fromISODate(week.startDate))} -{" "}
+            {formatDate(fromISODate(week.endDate))}
           </div>
         </CardHeader>
         <CardContent>
           <div className="flex flex-col gap-1">
-            {localWeek.days.map((day) => {
+            {week.days.map((day) => {
               const locationConfig = {
                 office: {
                   icon: "🏢",
