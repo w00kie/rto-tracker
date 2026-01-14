@@ -5,6 +5,7 @@
 import { forwardRef } from "react";
 import { useMutation } from "convex/react";
 import { api } from "../../../convex/_generated/api";
+import { toast } from "@/components/ui/sonner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -21,7 +22,10 @@ export const WeekCard = forwardRef<HTMLDivElement, WeekCardProps>(
   ({ week, isCurrentWeek = false }, ref) => {
     const setDayMutation = useMutation(api.dayEntries.setDay);
 
-    const handleToggle = (date: string, currentLocation: WorkLocation) => {
+    const handleToggle = async (
+      date: string,
+      currentLocation: WorkLocation
+    ) => {
       // Cycle through: home -> office -> vacation -> sick -> home
       const locationCycle: WorkLocation[] = [
         "home",
@@ -33,11 +37,20 @@ export const WeekCard = forwardRef<HTMLDivElement, WeekCardProps>(
       const newLocation =
         locationCycle[(currentIndex + 1) % locationCycle.length];
 
-      // Update via Convex mutation (optimistic updates handled by Convex)
-      void setDayMutation({
-        date,
-        location: newLocation,
-      });
+      // Update via Convex mutation with error handling
+      try {
+        await setDayMutation({
+          date,
+          location: newLocation,
+        });
+      } catch (error) {
+        console.error("Failed to update day:", error);
+        toast.error("Failed to update", {
+          description:
+            "Could not save your attendance change. Please try again.",
+          duration: 3000,
+        });
+      }
     };
 
     return (
