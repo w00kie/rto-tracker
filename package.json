@@ -7,7 +7,7 @@
     "build": "vite build && tsc --noEmit",
     "preview": "vite preview",
     "test": "vitest run",
-    "deploy": "bunx convex deploy --prod && vite build && wrangler deploy"
+    "deploy": "bunx convex deploy && vite build && wrangler deploy"
   },
   "dependencies": {
     "@convex-dev/auth": "^0.0.90",
