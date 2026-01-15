@@ -10,4 +10,8 @@
   "observability": {
     "logs": { "enabled": true },
   },
+  "route": {
+    "pattern": "rto.w00kie.com",
+    "custom_domain": true,
+  },
 }
