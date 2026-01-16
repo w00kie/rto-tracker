@@ -187,15 +187,35 @@ export function formatDate(date: Date): string {
 }
 
 /**
- * Get date range for an entire year
- * Returns the first and last day of the year in ISO format
+ * Get date range for an entire year, including partial weeks
+ * Extends the range to include all days in the first and last week of the year
+ * This ensures week 1 (which may start in Dec of prev year) and week 53/1 (which may end in Jan of next year) are fully covered
  */
 export function getYearDateRange(year: number): {
   startDate: string;
   endDate: string;
 } {
+  // Get the bounds of week 1 to find the actual start
+  const week1Bounds = getWeekBounds(year, 1);
+  const startDate = toISODate(week1Bounds.start);
+
+  // Get the bounds of week 53 (if it exists) or the last week of the year
+  let endDate: string;
+  const week53Bounds = getWeekBounds(year, 53);
+
+  // Check if week 53 actually belongs to this year
+  const week53Quarter = getQuarterForWeek(year, 53);
+  if (week53Quarter.year === year) {
+    endDate = toISODate(week53Bounds.end);
+  } else {
+    // Week 53 belongs to next year, so find the last week of this year
+    // by checking week 52
+    const week52Bounds = getWeekBounds(year, 52);
+    endDate = toISODate(week52Bounds.end);
+  }
+
   return {
-    startDate: `${year}-01-01`,
-    endDate: `${year}-12-31`,
+    startDate,
+    endDate,
   };
 }
