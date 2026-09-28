@@ -1,0 +1,31 @@
+diff --git a/dist/server/cookies.js b/dist/server/cookies.js
+index b76dd055651c33595166c0e87afa104c0445b65b..efd8f6e421011a1702c080c55bc13bc95162a3e5 100644
+--- a/dist/server/cookies.js
++++ b/dist/server/cookies.js
+@@ -1,10 +1,10 @@
+ import { isLocalHost } from "./utils.js";
+ export const SHARED_COOKIE_OPTIONS = {
+     httpOnly: true,
+-    sameSite: "none",
++    sameSite: "lax",
+     secure: true,
+     path: "/",
+-    partitioned: true,
++    partitioned: false,
+ };
+ const REDIRECT_MAX_AGE = 60 * 15; // 15 minutes in seconds
+ export function redirectToParamCookie(providerId, redirectTo) {
+diff --git a/src/server/cookies.ts b/src/server/cookies.ts
+index 3415044eea5a8dec2cf0b6114372f51251d5460f..50cb0d13b0003227fdf387e9450bfb26573bbd57 100644
+--- a/src/server/cookies.ts
++++ b/src/server/cookies.ts
+@@ -3,7 +3,7 @@ import { isLocalHost } from "./utils.js";
+ export const SHARED_COOKIE_OPTIONS = {
+   httpOnly: true,
+-  sameSite: "none" as const,
++  sameSite: "lax" as const,
+   secure: true,
+   path: "/",
+-  partitioned: true,
++  partitioned: false,
+ };

@@ -47,5 +47,8 @@
     "vitest": "^5.0.2",
     "web-vitals": "^6.2.2",
     "wrangler": "^4.142.0"
+  },
+  "patchedDependencies": {
+    "@convex-dev/auth@0.0.95": "patches/@convex-dev%2Fauth@0.0.95.patch"
   }
 }
