@@ -55,9 +55,9 @@ export function QuarterView({
 
   return (
     <div className="space-y-4">
-      <Card className={cn("border-2", config.border)}>
-        <CardHeader className="cursor-pointer" onClick={onToggle}>
-          <div className="flex items-center justify-between">
+      <Card className={cn("border-2 py-3", config.border)}>
+        <CardHeader className="cursor-pointer py-2" onClick={onToggle}>
+          <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-2">
               <Button variant="ghost" size="sm" className="h-6 w-6 p-0">
                 {isExpanded ? (
@@ -70,14 +70,14 @@ export function QuarterView({
                 {quarterLabel} {quarter.year}
               </CardTitle>
             </div>
-            <Badge variant={config.badge} className="text-sm">
-              {quarter.compliantWeeks}/{quarter.totalWeeks} weeks
-            </Badge>
-          </div>
-          <div className="text-sm text-muted-foreground ml-8">
-            <span className={config.text}>
-              {config.icon} {config.message}
-            </span>
+            <div className="flex items-center gap-3">
+              <span className={cn("text-sm", config.text)}>
+                {config.icon} {config.message}
+              </span>
+              <Badge variant={config.badge} className="text-sm">
+                {quarter.compliantWeeks}/{quarter.totalWeeks} weeks
+              </Badge>
+            </div>
           </div>
         </CardHeader>
       </Card>
